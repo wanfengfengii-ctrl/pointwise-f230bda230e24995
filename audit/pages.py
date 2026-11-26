@@ -27,9 +27,17 @@ def render_closeout(snapshot, status=200):
             ticket = entry['ticket']
             installation = entry['installation'] or {}
             removal = entry['removal'] or {}
+            moves = entry.get('moves') or []
+            move_text = '；'.join(
+                f"计划{m['relocation_id']}第{m['step']}步 {m['from_base_id']}→{m['to_base_id']}"
+                for m in moves
+            )
+            actual_base_id = entry.get('actual_base_id') or installation.get('base_id', '')
             rows.append((ticket['id'], ticket['edition_id'], ticket['replica_id'], ticket['back'],
                          installation.get('id', ''), installation.get('base_id', ''),
+                         actual_base_id, move_text,
                          installation.get('slot', ''), installation.get('pad_id', ''),
                          removal.get('id', ''), removal.get('reason', '')))
-        body += table(('交接号', '原发行', '实物', '背标', '实装号', '底座', '槽标', '垫片', '撤装号', '原因'), rows)
+        body += table(('交接号', '原发行', '实物', '背标', '实装号', '初装底座',
+                       '实际/末落点', '实移', '槽标', '垫片', '撤装号', '原因'), rows)
     return View(f'班末核对 {snapshot.id}', asdict(snapshot), body, status)

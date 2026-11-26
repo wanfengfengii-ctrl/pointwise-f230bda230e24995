@@ -1,6 +1,6 @@
 """Build an ordinary V1 exhibit layout for swap scenarios over the existing HTTP API."""
 
-from tests.support import SiteCase, group
+from tests.support import Forms, SiteCase, group
 
 
 def prepare(case, *, second_buffer=False):
@@ -59,3 +59,90 @@ class RelocationFixtureCase(SiteCase):
 
     def test_two_buffers(self):
         self.check_ordinary_use(True)
+
+
+class RelocationSwapCase(SiteCase):
+    def setUp(self):
+        super().setUp()
+        self.fixture = prepare(self)
+        self.i1 = self.fixture["installations"]["R1"]["id"]
+        self.i2 = self.fixture["installations"]["R2"]["id"]
+        self.r3 = self.fixture["handoffs"]["R3"]
+        self.targets = [
+            {"installation_id": self.i1, "base_id": "U2"},
+            {"installation_id": self.i2, "base_id": "U1"},
+        ]
+
+    def complete(self, plan_id):
+        plan = self.get(f"/relocations/{plan_id}")
+        for _ in range(8):
+            if plan["state"] == "completed":
+                return plan
+            plan = self.post(f"/relocations/{plan_id}/moves", plan["next_move"])
+        raise AssertionError("swap plan did not complete")
+
+    def test_checkout_confirm_reopen_closeout_and_actual_removal(self):
+        before = self.post("/closeouts", {"exhibition": "river"})
+        for buffers in ((), ["V1"]):
+            self.post("/relocations", {
+                "exhibition": "river", "targets": self.targets, "buffers": buffers,
+            }, status=409)
+
+        plan = self.post("/relocations", {
+            "exhibition": "river", "targets": self.targets, "buffers": ["S"],
+        })
+        plan_id = plan["id"]
+        first = {"step": 1, "installation_id": self.i1,
+                 "from_base_id": "U1", "to_base_id": "S"}
+        self.assertEqual(first, plan["next_move"])
+
+        self.mount(self.r3, base="S", status=409)
+        self.post("/parts/availability",
+                  {"kind": "base", "id": "S", "active": False}, status=409)
+        self.remove(self.i1, status=409)
+        outside = self.mount(self.r3, base="F")
+
+        page = self.get(f"/relocations/{plan_id}", html=True)
+        form = Forms(page).get(f"/relocations/{plan_id}/moves", "post")
+        self.post(f"/relocations/{plan_id}/moves", form["inputs"], form=True, html=True)
+        self.assertEqual([("S", self.i1), ("U2", self.i2)], self.rows(
+            "SELECT base_id, installation_id FROM base_occupancy "
+            "WHERE base_id IN ('S', 'U1', 'U2') ORDER BY base_id"))
+        mid = self.post("/closeouts", {"exhibition": "river"})
+        mid_entry = next(row for row in mid["categories"]["mounted"]
+                         if row["installation"]["id"] == self.i1)
+        self.assertEqual("S", mid_entry["actual_base_id"])
+
+        self.reopen()
+        self.post(f"/relocations/{plan_id}/moves", first, status=409)
+        completed = self.complete(plan_id)
+        self.assertEqual(3, len(completed["moves"]))
+        self.assertEqual("completed", completed["state"])
+        self.assertEqual([
+            {"installation_id": self.i1, "base_id": "U2", "target_base_id": "U2"},
+            {"installation_id": self.i2, "base_id": "U1", "target_base_id": "U1"},
+        ], completed["positions"])
+
+        after = self.post("/closeouts", {"exhibition": "river"})
+        self.assertEqual(before, self.get(f"/closeouts/{before['id']}"))
+        self.assertEqual(mid, self.get(f"/closeouts/{mid['id']}"))
+
+        receipt1 = self.receipt(self.fixture["handoffs"]["R1"])
+        receipt2 = self.receipt(self.fixture["handoffs"]["R2"])
+        self.assertEqual("U1", receipt1["installation"]["base_id"])
+        self.assertEqual("U2", receipt1["actual_base_id"])
+        self.assertEqual(2, len(receipt1["moves"]))
+        self.assertEqual("U2", receipt2["installation"]["base_id"])
+        self.assertEqual("U1", receipt2["actual_base_id"])
+        self.assertEqual(1, len(receipt2["moves"]))
+        self.assertTrue(all(move["relocation_id"] == plan_id for move in receipt1["moves"]))
+
+        self.remove(self.i1)
+        self.remove(self.i2)
+        self.assertEqual([], self.rows(
+            "SELECT base_id FROM base_occupancy WHERE base_id IN ('U1', 'U2')"))
+        removed1 = self.receipt(self.fixture["handoffs"]["R1"])
+        self.assertEqual("removed", removed1["state"])
+        self.assertEqual("U2", removed1["actual_base_id"])
+        self.assertEqual(outside["handoff_id"], self.r3)
+        self.assertEqual(after["id"], after["id"])

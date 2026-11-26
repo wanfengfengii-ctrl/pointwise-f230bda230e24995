@@ -54,7 +54,8 @@ def error_view(status, message):
 def document(view):
     navigation = ' '.join(link(path, text) for path, text in (
         ('/', '配装台'), ('/parts', '目录'), ('/proofs', '校样'), ('/editions', '发行'),
-        ('/handoffs', '备件交接'), ('/mounts', '展台实装'), ('/removals', '撤装'), ('/closeouts', '班末核对'),
+        ('/handoffs', '备件交接'), ('/mounts', '展台实装'), ('/relocations', '换座办理'),
+        ('/removals', '撤装'), ('/closeouts', '班末核对'),
     ))
     return f'''<!doctype html>
 <html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

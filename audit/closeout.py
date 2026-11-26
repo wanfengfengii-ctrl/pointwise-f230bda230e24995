@@ -1,8 +1,9 @@
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 from audit.reconcile import reconcile_exhibition
 from catalog.common import NotFound, identifier, transaction
+from dispatch.lookup import receipt_data
 from proof.drafts import exhibition_exists
 
 
@@ -24,7 +25,11 @@ def create_closeout(db, exhibition):
     with transaction(db):
         if not exhibition_exists(db, exhibition):
             raise NotFound(f'未知展次：{exhibition}')
-        categories = asdict(reconcile_exhibition(db, exhibition))
+        reconciled = reconcile_exhibition(db, exhibition)
+        categories = {
+            name: [receipt_data(receipt) for receipt in getattr(reconciled, name)]
+            for name in ('pending', 'mounted', 'removed')
+        }
         result = db.execute('INSERT INTO closeouts(exhibition, payload) VALUES (?, ?)',
                             (exhibition, json.dumps(categories)))
         return CloseoutSnapshot(result.lastrowid, exhibition, categories)

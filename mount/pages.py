@@ -2,7 +2,7 @@ from dataclasses import asdict
 
 from catalog.common import NotFound, record_id
 from dispatch.http import View, esc, field, form, link, select, table
-from dispatch.lookup import get_receipt
+from dispatch.lookup import get_receipt, receipt_data
 from mount.install import get_installation, install_mount, list_install_options
 from mount.remove import remove_mount
 
@@ -55,13 +55,14 @@ def show_removal_form(db, fields):
     if installation is None:
         raise NotFound(f'未知实装号：{installation_id}')
     receipt = get_receipt(db, installation.handoff_id)
-    body = f'<p>实装 {installation.id} · 底座 {esc(installation.base_id)}</p>'
+    actual_base_id = receipt.actual_base_id or installation.base_id
+    body = f'<p>实装 {installation.id} · 初装底座 {esc(installation.base_id)} · 实际底座 {esc(actual_base_id)}</p>'
     if receipt.removal:
         body += f'<p>已撤装。{link(f"/handoffs/{installation.handoff_id}", "原号回执")}</p>'
     else:
         controls = field('installation_id', '', installation_id, hidden=True) + field('reason', '撤装原因')
         body += form('/removals', controls, '确认撤装并释放底座')
-    return View(f'撤装实装 {installation_id}', asdict(receipt), body)
+    return View(f'撤装实装 {installation_id}', receipt_data(receipt), body)
 
 
 def submit_removal(db, fields):

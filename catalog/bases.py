@@ -72,8 +72,12 @@ def revise_slot_spec(db, slot, minimum, maximum):
 def set_base_availability(db, base_id, active):
     identifier(base_id, '底座编号')
     with transaction(db):
+        active_value = availability(active)
         result = db.execute('UPDATE bases SET active = ? WHERE id = ?',
-                            (availability(active), base_id))
+                            (active_value, base_id))
         if not result.rowcount:
             raise NotFound(f'未知底座：{base_id}')
+        if active_value == 0:
+            from relocation.service import assert_all_active_plans_feasible
+            assert_all_active_plans_feasible(db)
         return get_base(db, base_id)

@@ -32,6 +32,8 @@ from mount.pages import show_mount_form, show_removal_form, submit_mount, submit
 from mount.remove import init_removal_table
 from proof.drafts import init_draft_tables
 from proof.pages import render_proof, render_revision_diff, submit_proof
+from relocation.pages import show_plan, show_relocation_form, submit_plan_move, submit_relocation
+from relocation.service import init_relocation_tables
 
 
 def _connect(path):
@@ -47,7 +49,7 @@ def open_database(path):
             for initialize in (init_replica_tables, init_base_tables, init_pad_table, init_draft_tables,
                                init_seed_table, init_edition_tables, init_current_table, init_ticket_tables,
                                init_installation_table, init_occupancy_table, init_removal_table,
-                               init_closeout_tables):
+                               init_relocation_tables, init_closeout_tables):
                 initialize(db)
     except BaseException:
         db.close()
@@ -151,6 +153,7 @@ _POST = {
     '/parts': _add_part, '/parts/revise': _revise_part, '/parts/availability': _set_availability,
     '/proofs': submit_proof, '/editions': submit_edition, '/handoffs': submit_handoff,
     '/mounts': submit_mount, '/removals': submit_removal, '/closeouts': submit_closeout,
+    '/relocations': submit_relocation,
 }
 
 
@@ -175,6 +178,10 @@ def _get(db, path, fields):
             return show_removal_form(db, fields)
         case '/closeouts':
             return show_closeout(db, _read_path_id(fields['id']) if fields.get('id') else None)
+        case '/relocations':
+            if fields.get('id'):
+                return show_plan(db, _read_path_id(fields['id']))
+            return show_relocation_form(db, fields.get('exhibition', ''))
     match path.strip('/').split('/'):
         case ['proofs', revision]:
             return render_proof(db, revision)
@@ -186,6 +193,8 @@ def _get(db, path, fields):
             return show_receipt(db, _read_path_id(handoff_id))
         case ['closeouts', closeout_id]:
             return show_closeout(db, _read_path_id(closeout_id))
+        case ['relocations', relocation_id]:
+            return show_plan(db, _read_path_id(relocation_id))
     if path in _POST:
         return error_view(405, '该入口须提交表单')
     raise NotFound('未知办理路径')
@@ -209,6 +218,9 @@ class Application:
                 if method == 'POST' and path in _POST:
                     return _POST[path](db, fields)
                 if method == 'POST':
+                    parts = path.strip('/').split('/')
+                    if len(parts) == 3 and parts[0] == 'relocations' and parts[2] == 'moves':
+                        return submit_plan_move(db, _read_path_id(parts[1]), fields)
                     raise NotFound('未知提交路径')
                 return error_view(405, '该站点接收 GET 和 POST')
         except Conflict as error:
@@ -245,7 +257,7 @@ class Application:
         return [body]
 
 
-def _demo():
+def _demo_original_fit_and_closeout():
     with TemporaryDirectory(prefix='tour-mount-demo-') as directory:
         db_path = Path(directory) / 'tour.sqlite3'
         app = Application(db_path)
@@ -295,6 +307,12 @@ def _demo():
         }
         print('POINTWISE_SCENARIO ' + json.dumps(scenario, ensure_ascii=False, sort_keys=True))
         print(json.dumps({'receipt': receipt, 'closeout': history}, ensure_ascii=False, sort_keys=True))
+
+
+def _demo():
+    _demo_original_fit_and_closeout()
+    from relocation.demo import run_demo
+    run_demo()
 
 
 def main(argv=None):

@@ -78,5 +78,8 @@ def install_mount(db, handoff_id, base_id, pad_id):
             raise MountConflict(f'垫片不符合原发行的实际槽标规则：{pad_id}')
         result = db.execute('''INSERT INTO installations(handoff_id, base_id, slot, pad_id)
             VALUES (?, ?, ?, ?)''', (ticket.id, base.id, base.slot, pad_id))
-        claim_base(db, base.id, result.lastrowid)
-        return get_installation(db, result.lastrowid)
+        installation_id = result.lastrowid
+        claim_base(db, base.id, installation_id)
+        from relocation.service import assert_all_active_plans_feasible
+        assert_all_active_plans_feasible(db)
+        return get_installation(db, installation_id)
