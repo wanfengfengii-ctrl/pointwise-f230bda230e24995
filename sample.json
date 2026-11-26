@@ -1,0 +1,27 @@
+{
+  "version": "river-sample-1",
+  "replicas": [
+    {"id": "R1", "back": "A", "thickness": 8},
+    {"id": "R2", "back": "A", "thickness": 8},
+    {"id": "R3", "back": "A", "thickness": 8}
+  ],
+  "bases": [
+    {"id": "U1", "slot": "u", "minimum": 10, "maximum": 11},
+    {"id": "U2", "slot": "u", "minimum": 10, "maximum": 11}
+  ],
+  "pads": [
+    {"id": "Y", "thickness": 3},
+    {"id": "X", "thickness": 2},
+    {"id": "L", "thickness": 1},
+    {"id": "H", "thickness": 4}
+  ],
+  "draft": {
+    "exhibition": "river",
+    "revision": "river-1",
+    "parent": null,
+    "replicas": ["R1", "R2", "R3"],
+    "bases": ["U1", "U2"],
+    "pads": ["Y", "X", "L", "H"],
+    "groups": [{"back": "A", "slot": "u", "banned_pads": []}]
+  }
+}

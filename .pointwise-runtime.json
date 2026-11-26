@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "kind": "web",
+  "setup": [["python3", "-B", "-m", "dispatch.site", "init", "--sample"]],
+  "start": ["sh", "-c", "test \"$1\" = 127.0.0.1 && exec python3 -B -m dispatch.site serve --port \"$2\"", "serve", "${POINTWISE_HOST}", "${POINTWISE_PORT}"],
+  "readiness_path": "/",
+  "verify": ["python3", "-B", "check_project.py"],
+  "demo": ["python3", "-B", "-m", "dispatch.site", "demo"]
+}
